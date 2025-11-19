@@ -1,0 +1,7 @@
+package app
+
+import "github.com/SerhiiKhyzhko/bookstore_items-api/controllers"
+
+func mapUrls() {
+	router.POST("/items", controllers.ItemsController.Create)
+}
