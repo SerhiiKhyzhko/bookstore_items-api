@@ -14,11 +14,11 @@ type Item struct {
 }
 
 type Description struct {
-	PlainText string `json:"html"`
+	PlainText string `json:"plain_text"`
 	Html      string `json:"html"`
 }
 
 type Pictures struct {
-	Id  int64  `jsnon:"id"`
+	Id  int64  `json:"id"`
 	Url string `json:"url"`
 }

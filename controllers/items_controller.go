@@ -23,18 +23,18 @@ func (i *itemsController) Create(c *gin.Context) {
 		c.JSON(err.Status, err)
 		return
 	}
-	
+
 	var itemRequest items.Item
 	if err := c.ShouldBindJSON(&itemRequest); err != nil {
 		restErr := rest_errors.NewBadRequestError("invalid item json body")
-		c.JSON(restErr.Status, restErr)
+		c.JSON(restErr.Status(), restErr)
 		return
 	}
 
 	itemRequest.Seller = oauth.GetClientId(c.Request)
 	result, err := services.ItemsService.Create(itemRequest)
 	if err != nil {
-		c.JSON(err.Status, err.Message)
+		c.JSON(err.Status(), err.Message())
 	}
 
 	c.JSON(http.StatusCreated, result)
