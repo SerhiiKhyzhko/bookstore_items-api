@@ -2,11 +2,13 @@ module github.com/SerhiiKhyzhko/bookstore_items-api
 
 go 1.23.6
 
-require github.com/gin-gonic/gin v1.11.0
+require (
+	github.com/elastic/go-elasticsearch/v9 v9.2.0
+	github.com/gin-gonic/gin v1.11.0
+)
 
 require (
 	github.com/elastic/elastic-transport-go/v8 v8.7.0 // indirect
-	github.com/elastic/go-elasticsearch/v9 v9.2.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-resty/resty/v2 v2.16.5 // indirect

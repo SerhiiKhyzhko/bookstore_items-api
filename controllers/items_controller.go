@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/SerhiiKhyzhko/bookstore-oauth-go/oauth"
 	"github.com/SerhiiKhyzhko/bookstore_items-api/domain/items"
@@ -35,11 +36,18 @@ func (i *itemsController) Create(c *gin.Context) {
 	result, err := services.ItemsService.Create(itemRequest)
 	if err != nil {
 		c.JSON(err.Status(), err.Message())
+		return
 	}
 
 	c.JSON(http.StatusCreated, result)
 }
 
 func (i *itemsController) Get(c *gin.Context) {
-
+	itemId := strings.TrimSpace(c.Param("id"))
+	item, err := services.ItemsService.Get(itemId)
+	if err != nil {
+		c.JSON(err.Status(), err.Message())
+		return
+	}
+	c.JSON(http.StatusOK, item)
 }

@@ -3,18 +3,16 @@ package elasticsearch
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/SerhiiKhyzhko/bookstore_utils-go/logger"
-	"github.com/SerhiiKhyzhko/bookstore_utils-go/rest_errors"
+	_ "github.com/SerhiiKhyzhko/bookstore_utils-go/rest_errors"
 	"github.com/elastic/go-elasticsearch/v9"
-	"github.com/joho/godotenv"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/get"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/indices/create"
 )
 
 // ---------------------------------------------------------
@@ -82,12 +80,13 @@ const itemMapping = `{
 }`
 
 type EsClientInterface interface {
-	Init()
-	Index(index string, id string, sellerID string, doc any) rest_errors.RestErr
+	Init(string)
+	Index(string, string, any) error
+	Get(string, string) (*get.Response, error)
 }
 
 type esClient struct {
-	client *elasticsearch.Client
+	client *elasticsearch.TypedClient
 }
 
 var (
@@ -95,22 +94,12 @@ var (
 )
 
 // ---------------------------------------------------------
-// 3. ІНІЦІАЛІЗАЦІЯ (INIT & ENSURE INDEX)
+// 2. ІНІЦІАЛІЗАЦІЯ (INIT & ENSURE INDEX)
 // ---------------------------------------------------------
 
-func getESAddresses() []string {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
-	addreses := strings.Split(os.Getenv("ADDRESSES"), ";")
-	return addreses
-}
-
-func (c *esClient) Init() {
+func (c *esClient) Init(addreses string) {
 	cfg := elasticsearch.Config{
-		Addresses: getESAddresses(),
+		Addresses: strings.Split(addreses, ";"),
 		Transport: &http.Transport{
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // Для локальної розробки
 			ResponseHeaderTimeout: 10 * time.Second,
@@ -121,88 +110,88 @@ func (c *esClient) Init() {
 	}
 
 	var err error
-	c.client, err = elasticsearch.NewClient(cfg)
+	c.client, err = elasticsearch.NewTypedClient(cfg)
 	if err != nil {
+		logger.Error("Error creating elasticsearch typed client", err)
 		panic(err)
 	}
 
-	res, err := c.client.Info()
+	res, err := c.client.Info().Do(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		panic(fmt.Sprintf("Elasticsearch connection failed: %s", res.Status()))
-	}
-
-	logger.Info("Elasticsearch client connected successfully")
+	msg := fmt.Sprintf("Elasticsearch client connected. Claster: %s, Version %s", res.ClusterName, res.Version)
+	logger.Info(msg)
 
 	c.ensureIndexCreated()
 }
 
 func (c *esClient) ensureIndexCreated() {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	exists, err := c.client.Indices.Exists([]string{IndexItems})
+	exists, err := c.client.Indices.Exists(IndexItems).Do(ctx)
+
 	if err != nil {
-		panic(err)
-	}
-
-	if exists.StatusCode != 404 {
+		logger.Error(fmt.Sprintf("error when check the index %s", IndexItems), err)
 		return
 	}
 
-	res, err := c.client.Indices.Create(
-		IndexItems,
-		c.client.Indices.Create.WithBody(strings.NewReader(itemMapping)),
-		c.client.Indices.Create.WithContext(ctx),
-	)
+	if exists {
+		logger.Info(fmt.Sprintf("Indedx %s already exists", IndexItems))
+		return
+	}
+
+	req, err := create.NewRequest().FromJSON(itemMapping)
+
 	if err != nil {
+		logger.Error("error parsing itemMapping JSON", err)
 		panic(err)
 	}
-	defer res.Body.Close()
 
-	if res.IsError() {
-		panic(fmt.Sprintf("Error creating index %s: %s", IndexItems, res.Status()))
+	res, err := c.client.Indices.Create(IndexItems).
+		Request(req).
+		Do(ctx)
+
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to create index %s", IndexItems), err)
+		panic(err)
 	}
 
-	logger.Info(fmt.Sprintf("Index '%s' created successfully with custom mapping", IndexItems))
+	if res.Acknowledged {
+		logger.Info(fmt.Sprintf("index %s created successfully with settings and mappings", IndexItems))
+	}
 }
 
 // ---------------------------------------------------------
-// 4. МЕТОДИ РОБОТИ З ДАНИМИ (INDEX)
+// 3. МЕТОДИ РОБОТИ З ДАНИМИ (INDEX)
 // ---------------------------------------------------------
 
-func (c *esClient) Index(index string, id string, sellerID string, doc any) rest_errors.RestErr {
+func (c *esClient) Index(index string, id string, doc any) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	bytesData, err := json.Marshal(doc)
-	if err != nil {
-		logger.Error("error marshaling json", err)
-		return rest_errors.NewInternalServerError("error trying to marshal document", err)
-	}
-
-	res, err := c.client.Index(
-		index,
-		strings.NewReader(string(bytesData)),
-		c.client.Index.WithDocumentID(id),
-		c.client.Index.WithRouting(sellerID),
-		c.client.Index.WithContext(ctx),
-	)
+	res, err := c.client.Index(index).Id(id).Document(doc).Do(ctx)
 
 	if err != nil {
 		logger.Error("error connecting to elasticsearch", err)
-		return rest_errors.NewInternalServerError("database connection error", err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		logger.Error(fmt.Sprintf("elasticsearch returned error: %s", res.Status()), nil)
-		return rest_errors.NewInternalServerError("error indexing document", nil)
+		return err
 	}
 
+	logger.Info(fmt.Sprintf("document indexed: %s, result: %s", res.Id_, res.Result))
 	return nil
+}
+
+func (c *esClient) Get(index string, Id string) (*get.Response, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	res, err := c.client.Get(index, Id).Do(ctx)
+	if err != nil {
+		logger.Error(fmt.Sprintf("error when trying to get id %s", Id), err)
+		return nil, err
+	}
+
+	return res, nil
 }
