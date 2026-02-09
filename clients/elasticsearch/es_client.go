@@ -12,7 +12,9 @@ import (
 	_ "github.com/SerhiiKhyzhko/bookstore_utils-go/rest_errors"
 	"github.com/elastic/go-elasticsearch/v9"
 	"github.com/elastic/go-elasticsearch/v9/typedapi/core/get"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v9/typedapi/indices/create"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types"
 )
 
 // ---------------------------------------------------------
@@ -83,6 +85,7 @@ type EsClientInterface interface {
 	Init(string)
 	Index(string, string, any) error
 	Get(string, string) (*get.Response, error)
+	Search(string, *types.Query, *int, *int) (*search.Response, error)
 }
 
 type esClient struct {
@@ -194,4 +197,22 @@ func (c *esClient) Get(index string, Id string) (*get.Response, error) {
 	}
 
 	return res, nil
+}
+
+// 
+func (c *esClient) Search(index string, query *types.Query, from *int, size *int) (*search.Response, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := c.client.Search().Index(index).Request(
+		&search.Request{
+			Query: query,
+			From: from,
+			Size: size,
+		}).Do(ctx)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Error when trying to search documents in index %s", index), err)
+		return nil, err
+	}
+	return result, nil
 }

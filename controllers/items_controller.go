@@ -6,6 +6,7 @@ import (
 
 	"github.com/SerhiiKhyzhko/bookstore-oauth-go/oauth"
 	"github.com/SerhiiKhyzhko/bookstore_items-api/domain/items"
+	"github.com/SerhiiKhyzhko/bookstore_items-api/domain/queries"
 	"github.com/SerhiiKhyzhko/bookstore_items-api/services"
 	"github.com/SerhiiKhyzhko/bookstore_utils-go/rest_errors"
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,7 @@ var ItemsController itemsControllerInterface = &itemsController{}
 type itemsControllerInterface interface {
 	Create(c *gin.Context)
 	Get(c *gin.Context)
+	Search(c *gin.Context)
 }
 type itemsController struct{}
 
@@ -50,4 +52,20 @@ func (i *itemsController) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, item)
+}
+
+func(i *itemsController) Search(c *gin.Context) {
+	var query queries.EsQuery
+	if err := c.ShouldBindJSON(&query); err != nil {
+		restErr := rest_errors.NewBadRequestError("invalid query json body")
+		c.JSON(restErr.Status(), restErr)
+		return
+	}
+
+	items, searchErr := services.ItemsService.Search(query)
+	if searchErr != nil{
+		c.JSON(searchErr.Status(), searchErr.Message())
+		return
+	}
+	c.JSON(http.StatusOK, items)
 }
