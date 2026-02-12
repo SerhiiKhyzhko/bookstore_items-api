@@ -45,7 +45,7 @@ func (i *Item) Search(query queries.EsQuery) ([]Item, rest_errors.RestErr) {
 	searchRequest, err := elasticsearch.Client.Search(indexItems, query.Build(), query.From, query.Size)
 	if err != nil {
 		return nil, rest_errors.NewInternalServerError("error when trying to search document", errors.New("database error"))
-	} 
+	}
 
 	result := make([]Item, len(searchRequest.Hits.Hits))
 	for index, hit := range searchRequest.Hits.Hits {
@@ -58,4 +58,14 @@ func (i *Item) Search(query queries.EsQuery) ([]Item, rest_errors.RestErr) {
 	}
 
 	return result, nil
+}
+
+func (i *Item) Delete(id string) rest_errors.RestErr {
+	if err := elasticsearch.Client.Delete(indexItems, id); err != nil {
+		if errors.Is(err, elasticsearch.ErrorNotFound) {
+			return rest_errors.NewNotFoundError(fmt.Sprintf("document not found with such id %s in given index %s", id, indexItems))
+		}
+		return rest_errors.NewInternalServerError("error when trying to delete document", errors.New("database error"))
+	}
+	return nil
 }

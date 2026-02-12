@@ -65,7 +65,6 @@ func (q *EsQuery) Build() *types.Query {
 		})
 	}
 
-	// TDOD: Add validation and functionality if queries and filters are empty
 	return &types.Query{
 		Bool: &types.BoolQuery{
 			Must: queries,

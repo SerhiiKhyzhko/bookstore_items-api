@@ -18,6 +18,7 @@ type itemsControllerInterface interface {
 	Create(c *gin.Context)
 	Get(c *gin.Context)
 	Search(c *gin.Context)
+	Delete(c *gin.Context)
 }
 type itemsController struct{}
 
@@ -54,7 +55,7 @@ func (i *itemsController) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, item)
 }
 
-func(i *itemsController) Search(c *gin.Context) {
+func (i *itemsController) Search(c *gin.Context) {
 	var query queries.EsQuery
 	if err := c.ShouldBindJSON(&query); err != nil {
 		restErr := rest_errors.NewBadRequestError("invalid query json body")
@@ -63,9 +64,17 @@ func(i *itemsController) Search(c *gin.Context) {
 	}
 
 	items, searchErr := services.ItemsService.Search(query)
-	if searchErr != nil{
+	if searchErr != nil {
 		c.JSON(searchErr.Status(), searchErr.Message())
 		return
 	}
 	c.JSON(http.StatusOK, items)
+}
+
+func (i *itemsController) Delete(c *gin.Context) {
+	documentId := c.Param("id")
+	if deleteErr := services.ItemsService.Delete(documentId); deleteErr != nil {
+		c.JSON(deleteErr.Status(), deleteErr)
+	}
+	c.JSON(http.StatusOK, map[string]string{"status": "deleted"})
 }

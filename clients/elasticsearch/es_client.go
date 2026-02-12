@@ -3,18 +3,20 @@ package elasticsearch
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/SerhiiKhyzhko/bookstore_utils-go/logger"
-	_ "github.com/SerhiiKhyzhko/bookstore_utils-go/rest_errors"
 	"github.com/elastic/go-elasticsearch/v9"
 	"github.com/elastic/go-elasticsearch/v9/typedapi/core/get"
 	"github.com/elastic/go-elasticsearch/v9/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v9/typedapi/indices/create"
 	"github.com/elastic/go-elasticsearch/v9/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/optype"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/result"
 )
 
 // ---------------------------------------------------------
@@ -23,6 +25,10 @@ import (
 
 const (
 	IndexItems = "items"
+)
+
+var(
+	ErrorNotFound = errors.New("Document not found") 
 )
 
 // налаштування типів та шардів.
@@ -86,6 +92,7 @@ type EsClientInterface interface {
 	Index(string, string, any) error
 	Get(string, string) (*get.Response, error)
 	Search(string, *types.Query, *int, *int) (*search.Response, error)
+	Delete(string, string) error
 }
 
 type esClient struct {
@@ -175,7 +182,7 @@ func (c *esClient) Index(index string, id string, doc any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	res, err := c.client.Index(index).Id(id).Document(doc).Do(ctx)
+	res, err := c.client.Index(index).Id(id).OpType(optype.Create).Document(doc).Do(ctx) //OpType - захист від перезапису
 
 	if err != nil {
 		logger.Error("error connecting to elasticsearch", err)
@@ -199,7 +206,6 @@ func (c *esClient) Get(index string, Id string) (*get.Response, error) {
 	return res, nil
 }
 
-// 
 func (c *esClient) Search(index string, query *types.Query, from *int, size *int) (*search.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -207,12 +213,27 @@ func (c *esClient) Search(index string, query *types.Query, from *int, size *int
 	result, err := c.client.Search().Index(index).Request(
 		&search.Request{
 			Query: query,
-			From: from,
-			Size: size,
+			From:  from,
+			Size:  size,
 		}).Do(ctx)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Error when trying to search documents in index %s", index), err)
 		return nil, err
 	}
 	return result, nil
+}
+
+func (c *esClient) Delete(index string, id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	res, err := c.client.Delete(index, id).Do(ctx)
+	if err != nil {
+		logger.Error(fmt.Sprintf("error when trying to delete document with id %s from index %s", id, index), err)
+		return err
+	}
+	if res.Result == result.Notfound {
+		return ErrorNotFound
+	}
+	return nil
 }
