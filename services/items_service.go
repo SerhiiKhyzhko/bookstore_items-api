@@ -13,6 +13,8 @@ type ItemsServiceInterface interface {
 	Get(string) (*items.Item, rest_errors.RestErr)
 	Search(queries.EsQuery) ([]items.Item, rest_errors.RestErr)
 	Delete(string) rest_errors.RestErr
+	Put(items.Item)(*items.Item, rest_errors.RestErr)
+	Patch(items.PartialUpdateItem, string)(*items.Item, rest_errors.RestErr)
 }
 
 type itemsService struct{}
@@ -41,4 +43,19 @@ func (s *itemsService) Search(query queries.EsQuery) ([]items.Item, rest_errors.
 func (s *itemsService) Delete(id string) rest_errors.RestErr {
 	dao := items.Item{}
 	return dao.Delete(id)
+}
+
+func (s *itemsService) Put(item items.Item) (*items.Item, rest_errors.RestErr) {
+	if err := item.Put(); err != nil{
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *itemsService) Patch(item items.PartialUpdateItem, id string) (*items.Item, rest_errors.RestErr) {
+	if err := item.Patch(id); err != nil{
+		return nil, err
+	}
+
+	return s.Get(id)
 }

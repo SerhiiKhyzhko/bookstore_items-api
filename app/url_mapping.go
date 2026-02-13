@@ -7,4 +7,6 @@ func mapUrls() {
 	router.GET("/items/:id", controllers.ItemsController.Get)
 	router.POST("/items/search", controllers.ItemsController.Search)
 	router.DELETE("/items/:id", controllers.ItemsController.Delete)
+	router.PATCH("/items/:id", controllers.ItemsController.Patch)
+	router.PUT("/items/:id", controllers.ItemsController.Put)
 }

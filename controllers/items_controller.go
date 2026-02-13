@@ -19,7 +19,10 @@ type itemsControllerInterface interface {
 	Get(c *gin.Context)
 	Search(c *gin.Context)
 	Delete(c *gin.Context)
+	Put(c *gin.Context)	
+	Patch(c *gin.Context)
 }
+
 type itemsController struct{}
 
 func (i *itemsController) Create(c *gin.Context) {
@@ -72,9 +75,49 @@ func (i *itemsController) Search(c *gin.Context) {
 }
 
 func (i *itemsController) Delete(c *gin.Context) {
-	documentId := c.Param("id")
-	if deleteErr := services.ItemsService.Delete(documentId); deleteErr != nil {
+	itemId := strings.TrimSpace(c.Param("id"))
+	if deleteErr := services.ItemsService.Delete(itemId); deleteErr != nil {
 		c.JSON(deleteErr.Status(), deleteErr)
 	}
 	c.JSON(http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (i *itemsController) Put(c *gin.Context) {
+	itemId := strings.TrimSpace(c.Param("id"))
+	
+	var itemRequest items.Item
+	if err := c.ShouldBindJSON(&itemRequest); err != nil {
+		restErr := rest_errors.NewBadRequestError("invalid item json body")
+		c.JSON(restErr.Status(), restErr)
+		return
+	}
+
+	itemRequest.Id = itemId
+
+	result, err := services.ItemsService.Put(itemRequest)
+	if err != nil {
+		c.JSON(err.Status(), err.Message())
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func (i *itemsController) Patch(c *gin.Context) {
+	itemId := strings.TrimSpace(c.Param("id"))
+
+	var itemRequest items.PartialUpdateItem
+	if err := c.ShouldBindJSON(&itemRequest); err != nil {
+		restErr := rest_errors.NewBadRequestError("invalid update item json body")
+		c.JSON(restErr.Status(), restErr)
+		return
+	}
+
+	result, err := services.ItemsService.Patch(itemRequest, itemId)
+	if err != nil {
+		c.JSON(err.Status(), err.Message())
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }

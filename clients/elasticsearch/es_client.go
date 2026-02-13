@@ -93,6 +93,7 @@ type EsClientInterface interface {
 	Get(string, string) (*get.Response, error)
 	Search(string, *types.Query, *int, *int) (*search.Response, error)
 	Delete(string, string) error
+	Update(string, string, any) error
 }
 
 type esClient struct {
@@ -235,5 +236,18 @@ func (c *esClient) Delete(index string, id string) error {
 	if res.Result == result.Notfound {
 		return ErrorNotFound
 	}
+	return nil
+}
+
+func (c * esClient) Update(index string, id string, doc any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err := c.client.Update(index, id).Doc(doc).Do(ctx)
+	if err != nil {
+		logger.Error(fmt.Sprintf("error when trying to update document with id %s from index %s", id, index), err)
+		return err
+	}
+
 	return nil
 }

@@ -69,3 +69,19 @@ func (i *Item) Delete(id string) rest_errors.RestErr {
 	}
 	return nil
 }
+
+func (i *Item) Put() rest_errors.RestErr {
+	err := elasticsearch.Client.Update(indexItems, i.Id, i)
+	if err != nil {
+		return rest_errors.NewInternalServerError("error when trying to fully update item", errors.New("database error"))
+	}
+	return nil
+}
+
+func (p *PartialUpdateItem) Patch(id string) rest_errors.RestErr {
+	err := elasticsearch.Client.Update(indexItems, id, p)
+	if err != nil {
+		return rest_errors.NewInternalServerError("error when trying to update item`s field(s)", errors.New("database error"))
+	}
+	return nil
+}
