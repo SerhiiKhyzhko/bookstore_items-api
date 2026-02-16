@@ -89,11 +89,11 @@ const itemMapping = `{
 
 type EsClientInterface interface {
 	Init(string)
-	Index(string, string, any) error
-	Get(string, string) (*get.Response, error)
-	Search(string, *types.Query, *int, *int) (*search.Response, error)
-	Delete(string, string) error
-	Update(string, string, any) error
+	Index(context.Context, string, string, any) error
+	Get(context.Context, string, string) (*get.Response, error)
+	Search(context.Context, string, *types.Query, *int, *int) (*search.Response, error)
+	Delete(context.Context, string, string) error
+	Update(context.Context, string, string, any) error
 }
 
 type esClient struct {
@@ -178,12 +178,12 @@ func (c *esClient) ensureIndexCreated() {
 // 3. МЕТОДИ РОБОТИ З ДАНИМИ (INDEX)
 // ---------------------------------------------------------
 
-func (c *esClient) Index(index string, id string, doc any) error {
+func (c *esClient) Index(ctx context.Context, index string, id string, doc any) error {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	esCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	res, err := c.client.Index(index).Id(id).OpType(optype.Create).Document(doc).Do(ctx) //OpType - захист від перезапису
+	res, err := c.client.Index(index).Id(id).OpType(optype.Create).Document(doc).Do(esCtx) //OpType - захист від перезапису
 
 	if err != nil {
 		logger.Error("error connecting to elasticsearch", err)
@@ -194,11 +194,11 @@ func (c *esClient) Index(index string, id string, doc any) error {
 	return nil
 }
 
-func (c *esClient) Get(index string, Id string) (*get.Response, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+func (c *esClient) Get(ctx context.Context, index string, Id string) (*get.Response, error) {
+	esCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	res, err := c.client.Get(index, Id).Do(ctx)
+	res, err := c.client.Get(index, Id).Do(esCtx)
 	if err != nil {
 		logger.Error(fmt.Sprintf("error when trying to get id %s", Id), err)
 		return nil, err
@@ -207,8 +207,8 @@ func (c *esClient) Get(index string, Id string) (*get.Response, error) {
 	return res, nil
 }
 
-func (c *esClient) Search(index string, query *types.Query, from *int, size *int) (*search.Response, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func (c *esClient) Search(ctx context.Context, index string, query *types.Query, from *int, size *int) (*search.Response, error) {
+	esCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	result, err := c.client.Search().Index(index).Request(
@@ -216,7 +216,7 @@ func (c *esClient) Search(index string, query *types.Query, from *int, size *int
 			Query: query,
 			From:  from,
 			Size:  size,
-		}).Do(ctx)
+		}).Do(esCtx)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Error when trying to search documents in index %s", index), err)
 		return nil, err
@@ -224,11 +224,11 @@ func (c *esClient) Search(index string, query *types.Query, from *int, size *int
 	return result, nil
 }
 
-func (c *esClient) Delete(index string, id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+func (c *esClient) Delete(ctx context.Context, index string, id string) error {
+	esCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	res, err := c.client.Delete(index, id).Do(ctx)
+	res, err := c.client.Delete(index, id).Do(esCtx)
 	if err != nil {
 		logger.Error(fmt.Sprintf("error when trying to delete document with id %s from index %s", id, index), err)
 		return err
@@ -239,11 +239,11 @@ func (c *esClient) Delete(index string, id string) error {
 	return nil
 }
 
-func (c * esClient) Update(index string, id string, doc any) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+func (c * esClient) Update(ctx context.Context, index string, id string, doc any) error {
+	esCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	_, err := c.client.Update(index, id).Doc(doc).Do(ctx)
+	_, err := c.client.Update(index, id).Doc(doc).Do(esCtx)
 	if err != nil {
 		logger.Error(fmt.Sprintf("error when trying to update document with id %s from index %s", id, index), err)
 		return err

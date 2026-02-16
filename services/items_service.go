@@ -1,61 +1,62 @@
 package services
 
 import (
+	"context"
+
 	"github.com/SerhiiKhyzhko/bookstore_items-api/domain/items"
-	"github.com/SerhiiKhyzhko/bookstore_utils-go/rest_errors"
 	"github.com/SerhiiKhyzhko/bookstore_items-api/domain/queries"
 )
 
 var ItemsService ItemsServiceInterface = &itemsService{}
 
 type ItemsServiceInterface interface {
-	Create(items.Item) (*items.Item, rest_errors.RestErr)
-	Get(string) (*items.Item, rest_errors.RestErr)
-	Search(queries.EsQuery) ([]items.Item, rest_errors.RestErr)
-	Delete(string) rest_errors.RestErr
-	Put(items.Item)(*items.Item, rest_errors.RestErr)
-	Patch(items.PartialUpdateItem, string)(*items.Item, rest_errors.RestErr)
+	Create(context.Context, items.Item) (*items.Item, error)
+	Get(context.Context, string) (*items.Item, error)
+	Search(context.Context, queries.EsQuery) ([]items.Item, error)
+	Delete(context.Context, string) error
+	Put(context.Context, items.Item)(*items.Item, error)
+	Patch(context.Context, items.PartialUpdateItem, string)(*items.Item, error)
 }
 
 type itemsService struct{}
 
-func (s *itemsService) Create(item items.Item) (*items.Item, rest_errors.RestErr) {
-	if err := item.Save(); err != nil{
+func (s *itemsService) Create(ctx context.Context, item items.Item) (*items.Item, error) {
+	if err := item.Save(ctx); err != nil{
 		return nil, err
 	}
 	return &item, nil
 }
 
-func (s *itemsService) Get(id string) (*items.Item, rest_errors.RestErr) {
+func (s *itemsService) Get(ctx context.Context, id string) (*items.Item, error) {
 	item := items.Item{Id: id}
 
-	if err := item.Get(); err != nil {
+	if err := item.Get(ctx); err != nil {
 		return nil, err 
 	}
 	return &item, nil
 }
 
-func (s *itemsService) Search(query queries.EsQuery) ([]items.Item, rest_errors.RestErr) {
+func (s *itemsService) Search(ctx context.Context, query queries.EsQuery) ([]items.Item, error) {
 	dao := items.Item{}
-	return dao.Search(query)
+	return dao.Search(ctx, query)
 }
 
-func (s *itemsService) Delete(id string) rest_errors.RestErr {
+func (s *itemsService) Delete(ctx context.Context, id string) error {
 	dao := items.Item{}
-	return dao.Delete(id)
+	return dao.Delete(ctx, id)
 }
 
-func (s *itemsService) Put(item items.Item) (*items.Item, rest_errors.RestErr) {
-	if err := item.Put(); err != nil{
+func (s *itemsService) Put(ctx context.Context, item items.Item) (*items.Item, error) {
+	if err := item.Put(ctx); err != nil{
 		return nil, err
 	}
 	return &item, nil
 }
 
-func (s *itemsService) Patch(item items.PartialUpdateItem, id string) (*items.Item, rest_errors.RestErr) {
-	if err := item.Patch(id); err != nil{
+func (s *itemsService) Patch(ctx context.Context, item items.PartialUpdateItem, id string) (*items.Item, error) {
+	if err := item.Patch(ctx, id); err != nil{
 		return nil, err
 	}
 
-	return s.Get(id)
+	return s.Get(ctx, id)
 }
