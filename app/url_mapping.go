@@ -1,12 +1,15 @@
 package app
 
-import "github.com/SerhiiKhyzhko/bookstore_items-api/controllers"
+import (
+	"github.com/SerhiiKhyzhko/bookstore_items-api/controllers"
+	"github.com/gin-gonic/gin"
+)
 
-func mapUrls() {
-	router.POST("/items", controllers.ItemsController.Create)
-	router.GET("/items/:id", controllers.ItemsController.Get)
-	router.POST("/items/search", controllers.ItemsController.Search)
-	router.DELETE("/items/:id", controllers.ItemsController.Delete)
-	router.PATCH("/items/:id", controllers.ItemsController.Patch)
-	router.PUT("/items/:id", controllers.ItemsController.Put)
+func mapUrls(router *gin.Engine, itemsCtrl *controllers.ItemsController) {
+	router.POST("/items", itemsCtrl.Create)
+	router.GET("/items/:id", itemsCtrl.Get)
+	router.POST("/items/search", itemsCtrl.Search)
+	router.DELETE("/items/:id", itemsCtrl.Delete)
+	router.PATCH("/items/:id", itemsCtrl.Patch)
+	router.PUT("/items/:id", itemsCtrl.Put)
 }

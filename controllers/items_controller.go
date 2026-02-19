@@ -15,18 +15,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var ItemsController itemsControllerInterface = &itemsController{}
-
-type itemsControllerInterface interface {
-	Create(c *gin.Context)
-	Get(c *gin.Context)
-	Search(c *gin.Context)
-	Delete(c *gin.Context)
-	Put(c *gin.Context)
-	Patch(c *gin.Context)
+type ItemsController struct{
+	itemsService services.ItemsServiceInterface
 }
 
-type itemsController struct{}
+func NewItemsController(itemsService services.ItemsServiceInterface) *ItemsController {
+	return &ItemsController{itemsService: itemsService}
+}
 
 func requestError(reqErr error) rest_errors.RestErr {
 	switch {
@@ -42,7 +37,7 @@ func requestError(reqErr error) rest_errors.RestErr {
 
 }
 
-func (i *itemsController) Create(c *gin.Context) {
+func (i *ItemsController) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 	if err := oauth.AutenticationRequest(c.Request); err != nil {
 		c.JSON(err.Status, err)
@@ -57,7 +52,7 @@ func (i *itemsController) Create(c *gin.Context) {
 	}
 
 	itemRequest.Seller = oauth.GetClientId(c.Request)
-	result, err := services.ItemsService.Create(ctx, itemRequest)
+	result, err := i.itemsService.Create(ctx, itemRequest)
 	if err != nil {
 		restErr := requestError(err)
 		c.JSON(restErr.Status(), restErr.Message())
@@ -67,10 +62,10 @@ func (i *itemsController) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, result)
 }
 
-func (i *itemsController) Get(c *gin.Context) {
+func (i *ItemsController) Get(c *gin.Context) {
 	ctx := c.Request.Context()
 	itemId := strings.TrimSpace(c.Param("id"))
-	item, err := services.ItemsService.Get(ctx, itemId)
+	item, err := i.itemsService.Get(ctx, itemId)
 	if err != nil {
 		restErr := requestError(err)
 		if errors.Is(err, item_errors.NotFoundErr) {
@@ -82,7 +77,7 @@ func (i *itemsController) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, item)
 }
 
-func (i *itemsController) Search(c *gin.Context) {
+func (i *ItemsController) Search(c *gin.Context) {
 	ctx := c.Request.Context()
 	var query queries.EsQuery
 	if err := c.ShouldBindJSON(&query); err != nil {
@@ -91,7 +86,7 @@ func (i *itemsController) Search(c *gin.Context) {
 		return
 	}
 
-	items, searchErr := services.ItemsService.Search(ctx, query)
+	items, searchErr := i.itemsService.Search(ctx, query)
 	if searchErr != nil {
 		restErr := requestError(searchErr)
 		c.JSON(restErr.Status(), restErr.Message())
@@ -100,20 +95,21 @@ func (i *itemsController) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-func (i *itemsController) Delete(c *gin.Context) {
+func (i *ItemsController) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 	itemId := strings.TrimSpace(c.Param("id"))
-	if deleteErr := services.ItemsService.Delete(ctx, itemId); deleteErr != nil {
+	if deleteErr := i.itemsService.Delete(ctx, itemId); deleteErr != nil {
 		restErr := requestError(deleteErr)
 		if errors.Is(deleteErr, item_errors.NotFoundErr) {
 			restErr = rest_errors.NewNotFoundError(fmt.Sprintf("item not found with given id %s", itemId))
 		}
-		c.JSON(restErr.Status(), deleteErr)
+		c.JSON(restErr.Status(), restErr)
+		return
 	}
 	c.JSON(http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-func (i *itemsController) Put(c *gin.Context) {
+func (i *ItemsController) Put(c *gin.Context) {
 	ctx := c.Request.Context()
 	itemId := strings.TrimSpace(c.Param("id"))
 
@@ -126,9 +122,12 @@ func (i *itemsController) Put(c *gin.Context) {
 
 	itemRequest.Id = itemId
 
-	result, err := services.ItemsService.Put(ctx, itemRequest)
+	result, err := i.itemsService.Put(ctx, itemRequest)
 	if err != nil {
 		restErr := requestError(err)
+		if errors.Is(err, item_errors.NotFoundErr) {
+			restErr = rest_errors.NewNotFoundError(fmt.Sprintf("item not found with given id %s", itemId))
+		}
 		c.JSON(restErr.Status(), restErr.Message())
 		return
 	}
@@ -136,7 +135,7 @@ func (i *itemsController) Put(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func (i *itemsController) Patch(c *gin.Context) {
+func (i *ItemsController) Patch(c *gin.Context) {
 	ctx := c.Request.Context()
 	itemId := strings.TrimSpace(c.Param("id"))
 
@@ -147,9 +146,12 @@ func (i *itemsController) Patch(c *gin.Context) {
 		return
 	}
 
-	result, err := services.ItemsService.Patch(ctx, itemRequest, itemId)
+	result, err := i.itemsService.Patch(ctx, itemRequest, itemId)
 	if err != nil {
 		restErr := requestError(err)
+		if errors.Is(err, item_errors.NotFoundErr) {
+			restErr = rest_errors.NewNotFoundError(fmt.Sprintf("item not found with given id %s", itemId))
+		}
 		c.JSON(restErr.Status(), restErr.Message())
 		return
 	}

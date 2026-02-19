@@ -7,8 +7,6 @@ import (
 	"github.com/SerhiiKhyzhko/bookstore_items-api/domain/queries"
 )
 
-var ItemsService ItemsServiceInterface = &itemsService{}
-
 type ItemsServiceInterface interface {
 	Create(context.Context, items.Item) (*items.Item, error)
 	Get(context.Context, string) (*items.Item, error)
@@ -18,45 +16,51 @@ type ItemsServiceInterface interface {
 	Patch(context.Context, items.PartialUpdateItem, string)(*items.Item, error)
 }
 
-type itemsService struct{}
+type itemsService struct{
+	itemDao items.ItemDaoInterface
+}
+
+func NewItemsService(itemDao items.ItemDaoInterface) *itemsService {
+	return &itemsService{itemDao: itemDao}
+}
 
 func (s *itemsService) Create(ctx context.Context, item items.Item) (*items.Item, error) {
-	if err := item.Save(ctx); err != nil{
+	if err := s.itemDao.Save(ctx, item); err != nil{
 		return nil, err
 	}
 	return &item, nil
 }
 
 func (s *itemsService) Get(ctx context.Context, id string) (*items.Item, error) {
-	item := items.Item{Id: id}
-
-	if err := item.Get(ctx); err != nil {
-		return nil, err 
+	result, err := s.itemDao.Get(ctx, id)
+	if err != nil {
+		return nil, err
 	}
-	return &item, nil
+
+	result.Id = id
+
+	return result, nil
 }
 
 func (s *itemsService) Search(ctx context.Context, query queries.EsQuery) ([]items.Item, error) {
-	dao := items.Item{}
-	return dao.Search(ctx, query)
+	return s.itemDao.Search(ctx, query)
 }
 
 func (s *itemsService) Delete(ctx context.Context, id string) error {
-	dao := items.Item{}
-	return dao.Delete(ctx, id)
+	return s.itemDao.Delete(ctx, id)
 }
 
 func (s *itemsService) Put(ctx context.Context, item items.Item) (*items.Item, error) {
-	if err := item.Put(ctx); err != nil{
+	if err := s.itemDao.Put(ctx, item); err != nil{
 		return nil, err
 	}
 	return &item, nil
 }
 
 func (s *itemsService) Patch(ctx context.Context, item items.PartialUpdateItem, id string) (*items.Item, error) {
-	if err := item.Patch(ctx, id); err != nil{
+	if err := s.itemDao.Patch(ctx, item, id); err != nil{
 		return nil, err
 	}
 
-	return s.Get(ctx, id)
+	return s.itemDao.Get(ctx, id)
 }

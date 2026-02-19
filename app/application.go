@@ -1,10 +1,12 @@
 package app
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/SerhiiKhyzhko/bookstore_items-api/controllers"
+	"github.com/gin-gonic/gin"
+)
 
-var router = gin.Default()
-
-func StartApp() {
-	mapUrls()
+func StartApp(itemsCtrl *controllers.ItemsController) {
+	router := gin.Default()
+	mapUrls(router, itemsCtrl)
 	router.Run(":8000")
 }

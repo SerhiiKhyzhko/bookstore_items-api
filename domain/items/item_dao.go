@@ -15,56 +15,67 @@ const (
 	indexItems = "items"
 )
 
-func (i *Item) Save(ctx context.Context) error {
-	err := elasticsearch.Client.Index(ctx, indexItems, i.Id, i)
+type ItemDaoInterface interface {
+	Save(context.Context, Item) error
+	Get(context.Context, string) (*Item, error)
+	Search(context.Context, queries.EsQuery) ([]Item, error)
+	Delete(context.Context, string) error
+	Put(context.Context, Item) error
+	Patch(context.Context, PartialUpdateItem, string) error
+}
+
+type itemDaoStruct struct {
+	client elasticsearch.EsClientInterface
+}
+
+func NewItemDao(esClient elasticsearch.EsClientInterface) *itemDaoStruct {
+	return &itemDaoStruct{client: esClient}
+}
+
+func (d *itemDaoStruct) Save(ctx context.Context, item Item) error {
+	err := d.client.Index(ctx, indexItems, item.Id, item)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return item_errors.RequestTimeoutErr
 		}
 		return fmt.Errorf("save failed %w", err)
-		//return rest_errors.NewInternalServerError("error when trying to save item", errors.New("database error"))
 	}
 	return nil
 }
 
-func (i *Item) Get(ctx context.Context) error {
-	result, err := elasticsearch.Client.Get(ctx, indexItems, i.Id)
+func (d *itemDaoStruct) Get(ctx context.Context, id string) (*Item, error) {
+	var item Item
+	result, err := d.client.Get(ctx, indexItems, id)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return item_errors.RequestTimeoutErr
+			return nil, item_errors.RequestTimeoutErr
 		}
-		return fmt.Errorf("get failed %w", err)
-		//return rest_errors.NewInternalServerError(fmt.Sprintf("error when trying to get id %s", i.Id), errors.New("database error"))
+		return nil, fmt.Errorf("get failed %w", err)
 	}
 
 	if !result.Found {
-		return item_errors.NotFoundErr
-		//return rest_errors.NewNotFoundError(fmt.Sprintf("no item found with id %s", i.Id))
+		return nil, item_errors.NotFoundErr
 	}
 
-	if err := json.Unmarshal(result.Source_, &i); err != nil {
-		return item_errors.ParseErr
-		//return rest_errors.NewInternalServerError("error parsing elasticsearch response", err)
+	if err := json.Unmarshal(result.Source_, &item); err != nil {
+		return nil, item_errors.ParseErr
 	}
 
-	i.Id = result.Id_
+	item.Id = result.Id_
 
-	return nil
+	return &item, nil
 }
 
-func (i *Item) Search(ctx context.Context, query queries.EsQuery) ([]Item, error) {
-	searchRequest, err := elasticsearch.Client.Search(ctx, indexItems, query.Build(), query.From, query.Size)
+func (d *itemDaoStruct) Search(ctx context.Context, query queries.EsQuery) ([]Item, error) {
+	searchRequest, err := d.client.Search(ctx, indexItems, query.Build(), query.From, query.Size)
 	if err != nil {
 		return nil, fmt.Errorf("search failed %w", err)
-		//return nil, rest_errors.NewInternalServerError("error when trying to search document", errors.New("database error"))
 	}
-
 	result := make([]Item, len(searchRequest.Hits.Hits))
 	for index, hit := range searchRequest.Hits.Hits {
 		var item Item
 		if err := json.Unmarshal(hit.Source_, &item); err != nil {
 			return nil, item_errors.ParseErr
-			//return nil, rest_errors.NewInternalServerError("error when trying to parse response", errors.New("database error"))
 		}
 		item.Id = *hit.Id_
 		result[index] = item
@@ -73,32 +84,39 @@ func (i *Item) Search(ctx context.Context, query queries.EsQuery) ([]Item, error
 	return result, nil
 }
 
-func (i *Item) Delete(ctx context.Context, id string) error {
-	if err := elasticsearch.Client.Delete(ctx, indexItems, id); err != nil {
-		if errors.Is(err, elasticsearch.ErrorNotFound) {
-			return item_errors.NotFoundErr
-			//return rest_errors.NewNotFoundError(fmt.Sprintf("document not found with such id %s in given index %s", id, indexItems))
-		}
+func (d *itemDaoStruct) Delete(ctx context.Context, id string) error {
+	itemFound, err := d.client.Delete(ctx, indexItems, id)
+	if err != nil {
 		return fmt.Errorf("delete failed %w", err)
-		//return rest_errors.NewInternalServerError("error when trying to delete document", errors.New("database error"))
 	}
+	if !itemFound {
+		return item_errors.NotFoundErr
+	}
+	
 	return nil
 }
 
-func (i *Item) Put(ctx context.Context) error {
-	err := elasticsearch.Client.Update(ctx, indexItems, i.Id, i)
+func (d *itemDaoStruct) Put(ctx context.Context, item Item) error {
+	itemFound, err := d.client.Update(ctx, indexItems, item.Id, item)
 	if err != nil {
 		return fmt.Errorf("update of entire item failed %w", err)
-		//return rest_errors.NewInternalServerError("error when trying to fully update item", errors.New("database error"))
 	}
+	if !itemFound {
+		return item_errors.NotFoundErr
+	}
+
 	return nil
 }
 
-func (p *PartialUpdateItem) Patch(ctx context.Context, id string) error {
-	err := elasticsearch.Client.Update(ctx, indexItems, id, p)
+func (d *itemDaoStruct) Patch(ctx context.Context, partialUpdateItem PartialUpdateItem, id string) error {
+	itemFound, err := d.client.Update(ctx, indexItems, id, partialUpdateItem)
 	if err != nil {
+		
 		return fmt.Errorf("update item`s field(s) failed %w", err)
-		//return rest_errors.NewInternalServerError("error when trying to update item`s field(s)", errors.New("database error"))
 	}
+	if !itemFound {
+		return item_errors.NotFoundErr
+	}
+
 	return nil
 }
